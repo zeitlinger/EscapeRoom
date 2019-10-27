@@ -1,58 +1,103 @@
 @file:Suppress("SpellCheckingInspection", "EnumEntryName", "FunctionName", "NonAsciiCharacters", "LocalVariableName", "ClassName", "PrivatePropertyName", "PropertyName")
 
+import kotlin.math.absoluteValue
+
 data class Spiel(
     val spieler: Spieler,
     val haus: Haus,
-    val aufgabe: Boolean = false
+    val aufgeben: Boolean = false
 )
 
 interface Steuerung {
     fun <T> auswahl(spiel: Spiel, nachricht: String, auswahl: Collection<T>, name: (T) -> String): Auswahl<T>
     fun neuerRaum(spiel: Spiel, raum: Raum, richtung: Richtung): Spiel
+    fun ausgabe(nachricht: () -> String)
 }
 
+@Suppress("unused")
 enum class Phase(val aktion: (Spiel) -> Spiel) {
     gegenstandsAuswahl(::gegenstandAuswahl),
     türAuswählen(::türAuswählen)
 }
 
+val punkt0 = Punkt(0, 0)
+
 data class Spieler(
     val steuerung: Steuerung,
-    val raum: Int = 0,
+    val raum: Punkt = punkt0,
     val phase: Phase,
     val richtung: Richtung = Richtung.O,
     val gegenstand: Gegenstand? = null
 )
 
 data class Haus(
-    val räume: List<Raum>,
-    val eingang: Int,
-    val ausgang: Int
+    val räume: Map<Punkt, Raum>,
+    val eingang: Punkt,
+    val ausgang: Punkt
 )
 
 data class Raum(
-    val gegenstände: List<Gegenstand> = listOf(),
-    val türen: MutableMap<Richtung, Int> = mutableMapOf(),
-    val wache: ((Spieler) -> Boolean)? = null,
-    var nummer: Int = 0
+    val punkt: Punkt,
+    var gegenstände: List<Gegenstand> = emptyList(),
+    var türen: MutableMap<Richtung, Punkt> = mutableMapOf(),
+    var wache: ((Spieler) -> Boolean)? = null
 ) {
     override fun toString(): String {
-        return nummer.toString()
+        return punkt.toString()
     }
 }
 
 @Suppress("unused")
 enum class Gegenstand {
-    Waffe,
+    Armband,
+    Brief,
+    Cello,
+    Dudelsack,
+    Ei,
+    Fahne,
     Goldsack,
-    Keinen
+    Heft,
+    Imbus,
+    Joker,
+    Keinen,
+    Lampe,
+    Messer,
+    Kompass,
+    Ring,
+    Teller,
+    Waffe
 }
 
-enum class Richtung {
-    N,
-    O,
-    S,
-    W
+val wachen = listOf(
+    "Troll",
+    "Elfe",
+    "Fee",
+    "Zwerg",
+    "Dinosaurier",
+    "Killerhai",
+    "Monster",
+    "Einhorn",
+    "Biest",
+    "Hexe",
+    "Kröte",
+    "Drache",
+    "Maikäfer",
+    "König",
+    "Königin",
+    "Prinz",
+    "Prinzessin"
+)
+
+data class Punkt(val x: Int, val y: Int)
+
+fun plus(a: Punkt, b: Punkt) = Punkt(a.x + b.x, a.y + b.y)
+
+@Suppress("unused")
+enum class Richtung(val punkt: Punkt) {
+    N(Punkt(0, -1)),
+    O(Punkt(1, 0)),
+    S(Punkt(0, 1)),
+    W(Punkt(-1, 0))
 }
 
 @Suppress("unused")
@@ -60,24 +105,14 @@ enum class RelativeRichtung(val wert: Int) {
     vorne(0),
     rechts(1),
     hinten(2),
-    links(-1)
+    links(3)
 }
 
 fun relativeRichtung(spieler: Richtung, tür: Richtung): RelativeRichtung =
     RelativeRichtung.values().first { (spieler.ordinal + it.wert) % 4 == tür.ordinal }
 
-fun horizontal(räume: List<Raum>, westen: Int, osten: Int) {
-    räume[westen].türen[Richtung.O] = osten
-    räume[osten].türen[Richtung.W] = westen
-}
-
-fun vertikal(räume: List<Raum>, norden: Int, süden: Int) {
-    räume[norden].türen[Richtung.S] = süden
-    räume[süden].türen[Richtung.N] = norden
-}
-
 @Suppress("unused")
-val mensch = Spieler(phase = Phase.gegenstandsAuswahl, steuerung = object : Steuerung {
+val mensch = Spieler(phase = Phase.values().first(), steuerung = object : Steuerung {
     override fun <T> auswahl(
         spiel: Spiel,
         nachricht: String,
@@ -87,33 +122,35 @@ val mensch = Spieler(phase = Phase.gegenstandsAuswahl, steuerung = object : Steu
         val namen = auswahl.map { name(it) to it }.toMap()
         val kurz = namen.keys.map { it.substring(0, 1).toLowerCase() to it }.toMap()
 
-        println("$nachricht ${namen.keys.joinToString(", ")} (${kurz.keys.joinToString("/")})")
+        ausgabe { "$nachricht ${namen.keys.joinToString(", ")} (${kurz.keys.joinToString("/")})" }
 
         while (true) {
             val eingabe = readLine()
             if (eingabe in kurz) {
                 return Auswahl.Weiter(namen.getValue(kurz.getValue(eingabe!!)))
             }
-            println("Falsche Eingabe. Versuche es noch einmal.")
+            ausgabe { "Falsche Eingabe. Versuche es noch einmal." }
         }
     }
 
     override fun neuerRaum(spiel: Spiel, raum: Raum, richtung: Richtung): Spiel {
-        return kopieren(spiel, spieler = spiel.spieler.copy(
-            raum = raum.nummer,
+        return kopiere(spiel, spieler = spiel.spieler.copy(
+            raum = raum.punkt,
             richtung = richtung,
-            phase = Phase.gegenstandsAuswahl))
+            phase = Phase.values().first()))
+    }
+
+    override fun ausgabe(nachricht: () -> String) {
+        println(nachricht())
     }
 })
 
 data class Entscheidung(
-    var spiel: Spiel?,
     val pfad: List<Any>,
     var fertig: Boolean = false,
     var ausprobiert: Map<Any, Entscheidung>? = null,
-    val vorige: Entscheidung?
-
-
+    val vorige: Entscheidung?,
+    var spiel: Spiel? = null
 ) {
     override fun toString(): String {
         return pfad.toString()
@@ -128,7 +165,7 @@ sealed class Auswahl<T> {
 fun zurück(computerSteuerung: ComputerSteuerung, entscheidung: Entscheidung): Spiel {
     if (!entscheidung.fertig && entscheidung.ausprobiert?.any { !it.value.fertig } == true) {
         val spiel = entscheidung.spiel!!
-        println("zurück zu $entscheidung / ${spiel.spieler.raum} / ${spiel.spieler.gegenstand}")
+        spiel.spieler.steuerung.ausgabe { "zurück zu $entscheidung / ${spiel.spieler.raum} / ${spiel.spieler.gegenstand}" }
         computerSteuerung.aktuelleEntscheidung = entscheidung
         return spiel
     } else {
@@ -136,12 +173,19 @@ fun zurück(computerSteuerung: ComputerSteuerung, entscheidung: Entscheidung): S
     }
 
     return entscheidung.vorige?.let { zurück(computerSteuerung, it) }
-        ?: computerSteuerung.lösungen.takeIf { it.isNotEmpty() }?.let { l ->
-            val beste = l.minBy { it.pfad.size }!!
-            println("Lösung: $beste. Länge: ${beste.pfad.size} Lösungen: ${l.joinToString { it.toString() + "/" + it.pfad.size }}")
+        ?: beste(computerSteuerung)?.let { beste ->
+            val l = computerSteuerung.lösungen
+            computerSteuerung.ausgabe {
+                "Lösung: $beste. Länge: ${beste.pfad.size} " +
+                    "Lösungen: ${l.joinToString { it.toString() + "/" + it.pfad.size }}"
+            }
             beste.spiel!!
         }
-        ?: entscheidung.spiel!!.copy(aufgabe = true)
+        ?: entscheidung.spiel!!.copy(aufgeben = true)
+}
+
+private fun beste(computerSteuerung: ComputerSteuerung): Entscheidung? {
+    return computerSteuerung.lösungen.minBy { it.pfad.size }
 }
 
 fun schonMal(entscheidung: Entscheidung?, spiel: Spiel): Boolean {
@@ -152,7 +196,7 @@ fun schonMal(entscheidung: Entscheidung?, spiel: Spiel): Boolean {
     return entscheidung.spiel == spiel || schonMal(entscheidung.vorige, spiel)
 }
 
-class ComputerSteuerung : Steuerung {
+class ComputerSteuerung(private val detail: Boolean = false, private val schnell: Boolean = true) : Steuerung {
     var aktuelleEntscheidung: Entscheidung? = null
     private var züge = 0
     val lösungen: MutableList<Entscheidung> = mutableListOf()
@@ -163,8 +207,8 @@ class ComputerSteuerung : Steuerung {
         auswahl: Collection<T>,
         name: (T) -> String
     ): Auswahl<T> {
-        if (züge >= 10000) {
-            return Auswahl.ZurückAusRaum(spiel.copy(aufgabe = true))
+        if (züge >= 500) {
+            return Auswahl.ZurückAusRaum(spiel.copy(aufgeben = true))
         }
         züge++
 
@@ -176,7 +220,7 @@ class ComputerSteuerung : Steuerung {
 
         if (a.ausprobiert == null) {
             a.spiel = spiel
-            a.ausprobiert = auswahl.map { it as Any to Entscheidung(null, a.pfad + listOf(it as Any), vorige = a) }.toMap()
+            a.ausprobiert = auswahl.map { it as Any to Entscheidung(a.pfad + listOf(it as Any), vorige = a) }.toMap()
         }
 
         return a.ausprobiert?.entries
@@ -184,7 +228,7 @@ class ComputerSteuerung : Steuerung {
             ?.let {
                 @Suppress("UNCHECKED_CAST") val wahl = it.key as T
                 aktuelleEntscheidung = it.value
-                println("computer hat $wahl genommen. $aktuelleEntscheidung. Raum:${spiel.spieler.raum}")
+                ausgabe { "computer hat $wahl genommen. $aktuelleEntscheidung. Raum:${spiel.spieler.raum}" }
                 Auswahl.Weiter(wahl)
             }
             ?: Auswahl.ZurückAusRaum(zurück(this, a))
@@ -192,27 +236,33 @@ class ComputerSteuerung : Steuerung {
 
     override fun neuerRaum(spiel: Spiel, raum: Raum, richtung: Richtung): Spiel {
         if (aktuelleEntscheidung == null) {
-            aktuelleEntscheidung = Entscheidung(spiel, emptyList(), vorige = null)
+            aktuelleEntscheidung = Entscheidung(emptyList(), vorige = null)
         }
 
-        val s = kopieren(spiel, spieler = spiel.spieler.copy(
-            raum = raum.nummer,
-            phase = Phase.gegenstandsAuswahl))
+        val s = kopiere(spiel, spieler = spiel.spieler.copy(
+            raum = raum.punkt,
+            phase = Phase.values().first()))
 
-        if (raum.nummer == spiel.haus.ausgang) {
+        if (raum.punkt == spiel.haus.ausgang) {
             val a = aktuelleEntscheidung!!
             a.spiel = s
             lösungen.add(a)
-            return zurück(this, a)
+            if (!schnell) {
+                return zurück(this, a)
+            }
         }
         return s
     }
+
+    override fun ausgabe(nachricht: () -> String) {
+        if (detail) {
+            println(nachricht())
+        }
+    }
 }
 
-val probierComputer = Spieler(steuerung = ComputerSteuerung(), phase = Phase.gegenstandsAuswahl)
-
 @Suppress("unused")
-val zuffalsComputer = Spieler(phase = Phase.gegenstandsAuswahl, steuerung = object : Steuerung {
+val zuffalsComputer = Spieler(phase = Phase.values().first(), steuerung = object : Steuerung {
     override fun <T> auswahl(
         spiel: Spiel,
         nachricht: String,
@@ -220,89 +270,148 @@ val zuffalsComputer = Spieler(phase = Phase.gegenstandsAuswahl, steuerung = obje
         name: (T) -> String
     ): Auswahl<T> {
         val wahl = auswahl.random()
-        println("computer hat $wahl genommen")
+        ausgabe { "computer hat $wahl genommen" }
         return Auswahl.Weiter(wahl)
     }
 
     override fun neuerRaum(spiel: Spiel, raum: Raum, richtung: Richtung): Spiel {
-        return kopieren(spiel, spieler = spiel.spieler.copy(
-            raum = raum.nummer,
-            phase = Phase.gegenstandsAuswahl))
+        return kopiere(spiel, spieler = spiel.spieler.copy(
+            raum = raum.punkt,
+            phase = Phase.values().first()))
     }
+
+    override fun ausgabe(nachricht: () -> String) {
+        println(nachricht())
+    }
+
 })
 
 private fun wache(benötigt: Gegenstand, name: String): (Spieler) -> Boolean = { spieler: Spieler ->
     if (spieler.gegenstand == benötigt) {
-        println("Du besiegst den $name!")
+        spieler.steuerung.ausgabe { "Du besiegst den $name!" }
         true
     } else {
-        println("Du siehst einen $name und gehst rückwärts schnell wieder zurück!")
+        spieler.steuerung.ausgabe { "Du siehst einen $name und gehst rückwärts schnell wieder zurück!" }
         false
     }
 }
 
 fun main() {
-    val start = Raum()
-    val r1 = Raum(gegenstände = mutableListOf(Gegenstand.Waffe))
-    val r2 = Raum(wache = wache(Gegenstand.Waffe, "Troll"))
-    val r3 = Raum(wache = wache(Gegenstand.Goldsack, "Zwerg"))
-    val r4 = Raum()
-    val r5 = Raum(gegenstände = mutableListOf(Gegenstand.Goldsack))
-    val ziel = Raum()
+    val limit = 5
+    val r = 10
+    val probieren = 100
+    val räume = mutableMapOf(punkt0 to Raum(punkt0))
 
-    val räume = listOf(start, r1, r2, r3, r4, r5, ziel)
-    räume.forEachIndexed { index, raum -> raum.nummer = index }
+    while (räume.size < r) {
+        val raum = räume.values.random()
+        val richtung = Richtung.values().random()
+        val p = plus(raum.punkt, richtung.punkt)
+        if (p.x.absoluteValue > limit || p.y.absoluteValue > limit) {
+            continue
+        }
+        if (raum.türen[richtung] != null) {
+            continue
+        }
+        val ziel = räume[p] ?: Raum(p).also { räume[p] = it }
 
-    horizontal(räume, 0, 1)
-    horizontal(räume, 1, 5)
-    vertikal(räume, 0, 2)
-    horizontal(räume, 2, 3)
-    horizontal(räume, 3, 4)
-    vertikal(räume, 3, 6)
+        raum.türen[richtung] = ziel.punkt
+        ziel.türen[Richtung.values().first { (richtung.ordinal + 2) % 4 == it.ordinal }] = raum.punkt
+    }
 
-    val spieler = probierComputer
-    spiele(
-        Spiel(
-            spieler,
-            Haus(räume, 0, 6)
-        )
-    )
+    var (lösbar, best) = plaziereWachen(räume, probieren)
+
+    println("Schaffe es in $best zügen!")
+
+    spiele(Spiel(mensch, Haus(lösbar, punkt0, lösbar.values.last().punkt)))
 }
 
-fun kopieren(
+private fun plaziereWachen(räume: MutableMap<Punkt, Raum>, probieren: Int): Pair<Map<Punkt, Raum>, Int> {
+    val plaziert: MutableMap<String, Gegenstand> = mutableMapOf()
+
+    var lösbar = räume.toMap()
+    var best = 0
+    val ausgang = räume.values.last().punkt
+    var probiert = 0
+    while (true) {
+        val wache = wachen.filterNot { it in plaziert.keys }.toList().random()
+
+        val g = Gegenstand.values()
+            .filterNot { it == Gegenstand.Keinen || it in plaziert.values }
+            .takeIf { it.isNotEmpty() }
+            ?.toList()?.random()
+            ?: return Pair(lösbar, best)
+
+        val wachenRaum = räume.values
+            .filter { it.wache == null  }
+            .takeIf { it.isNotEmpty() }
+            ?.toList()?.random()
+            ?: return Pair(lösbar, best)
+        
+        val lager = räume.values
+            .filter { it != wachenRaum }
+            .takeIf { it.isNotEmpty() }
+            ?.toList()?.random()
+            ?: return Pair(lösbar, best)
+
+        plaziert[wache] = g
+        wachenRaum.wache = wache(g, wache)
+        lager.gegenstände = lager.gegenstände + listOf(g)
+
+        val st = ComputerSteuerung()
+        val spiel = Spiel(Spieler(steuerung = st, phase = Phase.values().first()), Haus(räume, punkt0, ausgang))
+
+        val b = System.currentTimeMillis()
+        val geschafft = spiele(spiel)
+        val d = (System.currentTimeMillis() - b) / 1000
+        println("Wachen: ${plaziert.size} Dauer: $d")
+
+        if (geschafft) {
+            lösbar = kopiereRäume(räume)
+            best = beste(st)!!.pfad.size
+            probiert = 0
+        } else {
+            probiert++
+            if (probiert >= probieren) {
+                break
+            }
+        }
+    }
+    return Pair(lösbar, best)
+}
+
+fun kopiere(
     spiel: Spiel,
     spieler: Spieler = spiel.spieler,
-    räume: List<Raum> = listOf(),
-    aufgabe: Boolean = false
+    räume: List<Raum> = emptyList(),
+    aufgeben: Boolean = false
 ): Spiel {
     return Spiel(
         spieler,
-        if (räume.isNotEmpty()) {
-            spiel.haus.copy(räume = spiel.haus.räume.map { r ->
-                räume.firstOrNull { it.nummer == r.nummer }
-                    ?: r.copy(gegenstände = r.gegenstände.toList())
-            })
-        } else spiel.haus,
-        aufgabe = aufgabe
+        if (räume.isNotEmpty()) spiel.haus.copy(räume = kopiereRäume(spiel.haus.räume, räume)) else spiel.haus,
+        aufgeben = aufgeben
     )
 }
 
-fun spiele(spiel: Spiel): Int {
+private fun kopiereRäume(räume: Map<Punkt, Raum>, neue: List<Raum> = emptyList()): Map<Punkt, Raum> {
+    return räume.map { r ->
+        neue.firstOrNull { it.punkt == r.value.punkt }
+            ?.let { it.punkt to it }
+            ?: r.key to r.value.copy(gegenstände = r.value.gegenstände.toMutableList())
+    }.toMap()
+}
+
+fun spiele(spiel: Spiel): Boolean {
     var züge = 0
-    var s = spiel.spieler.steuerung.neuerRaum(spiel, spiel.haus.räume[spiel.haus.eingang], Richtung.O)
-    while (s.spieler.raum != s.haus.ausgang && !s.aufgabe) {
+    var s = spiel.spieler.steuerung.neuerRaum(spiel, spiel.haus.räume.getValue(spiel.haus.eingang), Richtung.O)
+    while (s.spieler.raum != s.haus.ausgang && !s.aufgeben) {
         s = s.spieler.phase.aktion(s)
         züge++
     }
-    if (s.aufgabe) {
-        println("Aufgegeben! $züge Züge gebraucht.")
-    } else {
-        println("Endlich wieder frei! $züge Züge gebraucht.")
-    }
-    return züge
+    spiel.spieler.steuerung.ausgabe { if (s.aufgeben) "Aufgegeben! $züge Züge gebraucht." else "Endlich wieder frei! $züge Züge gebraucht." }
+    return !s.aufgeben
 }
 
-private fun raum(spiel: Spiel) = spiel.haus.räume.first { it.nummer == spiel.spieler.raum }
+private fun raum(spiel: Spiel) = spiel.haus.räume.values.first { it.punkt == spiel.spieler.raum }
 
 private fun türAuswählen(spiel: Spiel): Spiel {
     val spieler = spiel.spieler
@@ -323,7 +432,7 @@ private fun türAuswählen(spiel: Spiel): Spiel {
 private fun gegenstandAuswahl(spiel: Spiel): Spiel {
     val raum = raum(spiel)
     val spieler = spiel.spieler
-    println("Raum: $raum Gegenstand: ${spieler.gegenstand}")
+    spiel.spieler.steuerung.ausgabe { "Gegenstand: ${spieler.gegenstand}" }
 
     if (raum.gegenstände.isNotEmpty()) {
         val auswahl = spieler.steuerung.auswahl(
@@ -339,17 +448,19 @@ private fun gegenstandAuswahl(spiel: Spiel): Spiel {
             is Auswahl.ZurückAusRaum -> return auswahl.spiel
         }
     }
-    return kopieren(spiel, spieler.copy(phase = Phase.türAuswählen))
+    return kopiere(spiel, spieler.copy(phase = nächste(spiel)))
 }
 
+private fun nächste(spiel: Spiel) = Phase.values()[spiel.spieler.phase.ordinal + 1]
+
 private fun neuerRaum(tür: Richtung, spiel: Spiel): Spiel {
-    val nächster = spiel.haus.räume[raum(spiel).türen.getValue(tür)]
+    val nächster = spiel.haus.räume.getValue(raum(spiel).türen.getValue(tür))
     val spieler = spiel.spieler
 
     val wache = nächster.wache
     if (wache != null) {
         return if (wache(spieler)) {
-            spieler.steuerung.neuerRaum(kopieren(spiel, räume = listOf(nächster.copy(wache = null))), nächster, tür)
+            spieler.steuerung.neuerRaum(kopiere(spiel, räume = listOf(nächster.copy(wache = null))), nächster, tür)
         } else {
             spiel
         }
@@ -359,8 +470,8 @@ private fun neuerRaum(tür: Richtung, spiel: Spiel): Spiel {
 }
 
 fun nimm(spieler: Spieler, gegenstand: Gegenstand, raum: Raum, spiel: Spiel): Spiel {
-    return kopieren(spiel,
-        spieler = spieler.copy(gegenstand = gegenstand, phase = Phase.türAuswählen),
+    return kopiere(spiel,
+        spieler = spieler.copy(gegenstand = gegenstand, phase = nächste(spiel)),
         räume = listOf(raum.copy(gegenstände = raum.gegenstände + listOfNotNull(spieler.gegenstand) - listOf(gegenstand)))
     )
 }
