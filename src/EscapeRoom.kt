@@ -364,14 +364,16 @@ fun main() {
     println("Schaffe es in $best zügen!")
 
     val steuerung = MenschSteuerung()
-    val mensch1 = Spieler("1", steuerung)
-    val mensch2 = Spieler("2", steuerung)
+
+    val spieler = (1..eingabe("Wie viele Spieler", (1..4).toList()) { i, _ ->
+        AuswahlAnzeige(i, i.toString(), i.toString(), i.toString())
+    }).map{Spieler(it.toString(), steuerung)}
 
     val sch = eingabe("Wähle eine Schwierigkeit", Schwierigkeit.values().toList()) { s, i ->
         AuswahlAnzeige(s, s.name, i.toString(), i.toString())
     }
 
-    spiele(Spiel(null, mensch1, listOf(mensch1), Haus(lösbar, startPunkt, lösbar.values.last().punkt),
+    spiele(Spiel(null, spieler.first(), spieler, Haus(lösbar, startPunkt, lösbar.values.last().punkt),
         schwierigkeit = sch))
 }
 
@@ -580,7 +582,7 @@ private fun wähleGegenstand(spiel: Spiel, gegenstände: List<Gegenstand>): Spie
             spiel,
             "Was willst du mitnehmen?",
             gegenstände + listOf(Gegenstand.Keinen)
-        ) { g, i -> AuswahlAnzeige(g, g.name, i.toString(), i.toString()) }
+        ) { g, i -> AuswahlAnzeige(g, g.name, if (g == Gegenstand.Keinen) "" else i.toString(), i.toString()) }
 
         when (auswahl) {
             is Auswahl.Weiter -> if (auswahl.wahl != Gegenstand.Keinen) {
@@ -635,13 +637,11 @@ fun nimm(spiel: Spiel, gegenstand: Gegenstand): Spiel {
 }
 
 
-
 //Ideen
 //2) ein/eine
 //3) Truhe
 //4) Tauchen
 //5) Keller
 //6) bessere Eingabe (kein Enter) also nur w
-//7) Enter = nix nehme
 //8) Freitexteingabe bei Forscher, Hexe
 
